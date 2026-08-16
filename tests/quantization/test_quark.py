@@ -19,6 +19,7 @@ from packaging import version
 
 from vllm._aiter_ops import is_aiter_found_and_supported
 from vllm.model_executor.layers.quantization.quark.quark import (  # noqa: E501
+    QuarkConfig,
     QuarkLinearMethod,
     QuarkW8A8Fp8,
     QuarkW8A8Int8,
@@ -33,6 +34,7 @@ from vllm.model_executor.layers.quantization.utils.mxfp4_utils import (
 from vllm.model_executor.layers.quantization.utils.quant_utils import (
     is_layer_skipped,
 )
+from vllm.model_executor.models.utils import WeightsMapper
 from vllm.platforms import current_platform
 from vllm.transformers_utils.repo_utils import hf_api
 
@@ -78,6 +80,22 @@ except huggingface_hub.errors.RepositoryNotFoundError:
 def enable_pickle(monkeypatch):
     """`LLM.apply_model` requires pickling a function."""
     monkeypatch.setenv("VLLM_ALLOW_INSECURE_SERIALIZATION", "1")
+
+
+def test_quark_mapper_preserves_algorithm_metadata():
+    quant_config = {
+        "exclude": ["model.layers.0"],
+        "algo_config": [{"name": "awq", "scaling_layers": []}],
+        "layer_quant_config": {"model.layers.0": {"weight": {}}},
+    }
+    config = QuarkConfig(quant_config)
+    mapper = WeightsMapper(orig_to_new_prefix={"model.": "language_model."})
+
+    config.apply_vllm_mapper(mapper)
+
+    assert config.quant_config["exclude"] == ["language_model.layers.0"]
+    assert config.quant_config["algo_config"] == quant_config["algo_config"]
+    assert "language_model.layers.0" in config.quant_config["layer_quant_config"]
 
 
 @pytest.mark.parametrize("kv_cache_dtype", ["auto", "fp8"])

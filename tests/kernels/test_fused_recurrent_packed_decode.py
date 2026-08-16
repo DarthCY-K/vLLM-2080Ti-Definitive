@@ -8,6 +8,7 @@ from vllm.third_party.flash_linear_attention.ops import (
     fused_recurrent_gated_delta_rule,
     fused_recurrent_gated_delta_rule_packed_decode,
 )
+from vllm.v1.attention.backends.utils import PAD_SLOT_ID
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Need CUDA device")
@@ -100,3 +101,140 @@ def test_fused_recurrent_packed_decode_matches_reference(
     valid = ssm_state_indices > 0
     torch.testing.assert_close(out_packed[valid], out_ref[valid], rtol=rtol, atol=atol)
     torch.testing.assert_close(state_packed, state_ref, rtol=rtol, atol=atol)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="Need CUDA device")
+def test_fused_recurrent_packed_decode_accepts_gdn_state_slot_zero() -> None:
+    torch.manual_seed(7)
+    device = torch.device("cuda")
+    dtype = torch.float16
+    batch_size = 2
+    num_heads = value_heads = 1
+    key_dim = value_dim = 16
+    qkv_dim = 2 * num_heads * key_dim + value_heads * value_dim
+
+    mixed_qkv = torch.randn(batch_size, qkv_dim, device=device, dtype=dtype)
+    mixed_qkv[1].copy_(mixed_qkv[0])
+    a = torch.randn(batch_size, value_heads, device=device, dtype=dtype)
+    a[1].copy_(a[0])
+    b = torch.randn(batch_size, value_heads, device=device, dtype=dtype)
+    b[1].copy_(b[0])
+    a_log = torch.randn(value_heads, device=device, dtype=torch.float32)
+    dt_bias = torch.randn(value_heads, device=device, dtype=dtype)
+    initial_state = torch.randn(
+        2, value_heads, value_dim, key_dim, device=device, dtype=dtype
+    )
+    initial_state[1].copy_(initial_state[0])
+
+    state = initial_state.clone()
+    out = torch.empty(
+        batch_size, 1, value_heads, value_dim, device=device, dtype=dtype
+    )
+    fused_recurrent_gated_delta_rule_packed_decode(
+        mixed_qkv=mixed_qkv,
+        a=a,
+        b=b,
+        A_log=a_log,
+        dt_bias=dt_bias,
+        scale=key_dim**-0.5,
+        initial_state=state,
+        out=out,
+        ssm_state_indices=torch.tensor([0, 1], device=device, dtype=torch.int32),
+        use_qk_l2norm_in_kernel=True,
+        null_block_id=PAD_SLOT_ID,
+    )
+
+    torch.testing.assert_close(out[0], out[1], rtol=2e-3, atol=2e-3)
+    torch.testing.assert_close(state[0], state[1], rtol=2e-3, atol=2e-3)
+
+    padded_state = initial_state.clone()
+    padded_out = torch.empty_like(out)
+    fused_recurrent_gated_delta_rule_packed_decode(
+        mixed_qkv=mixed_qkv,
+        a=a,
+        b=b,
+        A_log=a_log,
+        dt_bias=dt_bias,
+        scale=key_dim**-0.5,
+        initial_state=padded_state,
+        out=padded_out,
+        ssm_state_indices=torch.tensor(
+            [0, PAD_SLOT_ID], device=device, dtype=torch.int32
+        ),
+        use_qk_l2norm_in_kernel=True,
+        null_block_id=PAD_SLOT_ID,
+    )
+
+    torch.testing.assert_close(padded_out[0], out[0], rtol=2e-3, atol=2e-3)
+    torch.testing.assert_close(padded_out[1], torch.zeros_like(padded_out[1]))
+    torch.testing.assert_close(padded_state[0], state[0], rtol=2e-3, atol=2e-3)
+    torch.testing.assert_close(padded_state[1], initial_state[1], rtol=0, atol=0)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="Need CUDA device")
+def test_fused_recurrent_accepts_gdn_state_slot_zero() -> None:
+    torch.manual_seed(13)
+    device = torch.device("cuda")
+    dtype = torch.float16
+    batch_size = 2
+    num_heads = value_heads = 1
+    key_dim = value_dim = 16
+
+    q = torch.randn(1, batch_size, num_heads, key_dim, device=device, dtype=dtype)
+    q[:, 1].copy_(q[:, 0])
+    k = torch.randn_like(q)
+    k[:, 1].copy_(k[:, 0])
+    v = torch.randn(
+        1, batch_size, value_heads, value_dim, device=device, dtype=dtype
+    )
+    v[:, 1].copy_(v[:, 0])
+    g = torch.randn(1, batch_size, value_heads, device=device, dtype=dtype)
+    g[:, 1].copy_(g[:, 0])
+    beta = torch.sigmoid(
+        torch.randn(1, batch_size, value_heads, device=device, dtype=dtype)
+    )
+    beta[:, 1].copy_(beta[:, 0])
+    initial_state = torch.randn(
+        2, value_heads, value_dim, key_dim, device=device, dtype=dtype
+    )
+    initial_state[1].copy_(initial_state[0])
+    cu_seqlens = torch.tensor([0, 1, 2], device=device, dtype=torch.int32)
+
+    state = initial_state.clone()
+    out, _ = fused_recurrent_gated_delta_rule(
+        q=q,
+        k=k,
+        v=v,
+        g=g,
+        beta=beta,
+        initial_state=state,
+        inplace_final_state=True,
+        cu_seqlens=cu_seqlens,
+        ssm_state_indices=torch.tensor([0, 1], device=device, dtype=torch.int32),
+        use_qk_l2norm_in_kernel=True,
+        null_block_id=PAD_SLOT_ID,
+    )
+
+    torch.testing.assert_close(out[:, 0], out[:, 1], rtol=2e-3, atol=2e-3)
+    torch.testing.assert_close(state[0], state[1], rtol=2e-3, atol=2e-3)
+
+    padded_state = initial_state.clone()
+    padded_out, _ = fused_recurrent_gated_delta_rule(
+        q=q,
+        k=k,
+        v=v,
+        g=g,
+        beta=beta,
+        initial_state=padded_state,
+        inplace_final_state=True,
+        cu_seqlens=cu_seqlens,
+        ssm_state_indices=torch.tensor(
+            [0, PAD_SLOT_ID], device=device, dtype=torch.int32
+        ),
+        use_qk_l2norm_in_kernel=True,
+        null_block_id=PAD_SLOT_ID,
+    )
+
+    torch.testing.assert_close(padded_out[:, 0], out[:, 0], rtol=2e-3, atol=2e-3)
+    torch.testing.assert_close(padded_state[0], state[0], rtol=2e-3, atol=2e-3)
+    torch.testing.assert_close(padded_state[1], initial_state[1], rtol=0, atol=0)
