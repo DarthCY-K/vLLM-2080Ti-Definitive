@@ -201,7 +201,7 @@ class CudaCommunicator(DeviceCommunicatorBase):
             assert out is not None
             return out
         ca_comm = self.ca_comm
-        # [FORK] profiling 期间禁用 custom AR (128K IPC 泄漏, 官方 #46515)
+        # [FORK] disable custom AR during profiling (128K IPC leak, upstream #46515)
         import vllm.distributed.device_communicators.custom_all_reduce as _car_mod
         _profiling_disabled = getattr(_car_mod, "_PROFILING_CAR_DISABLED", False)
         if (

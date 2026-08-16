@@ -6091,21 +6091,21 @@ class GPUModelRunner(
 
     @torch.inference_mode()
     def profile_cudagraph_memory(self) -> int:
-        # [FORK] 128K 长上下文 + custom all-reduce 时 IPC handle 泄漏崩溃
-        # (官方 #46515), profiling 期间临时禁用 custom AR 实例
+        # [FORK] IPC handle leak crash with 128K context + custom all-reduce
+        # (upstream #46515), temporarily disable custom AR instance during profiling
         _ca_comm = None
         try:
             from vllm.distributed.parallel_state import get_world_group
             _world = get_world_group()
             _ca_comm = getattr(_world.device_communicator, "ca_comm", None)
-            # 独立设置模块级标志 (cuda_communicator.all_reduce 检查它)
+            # set module-level flag independently (checked by cuda_communicator.all_reduce)
             import vllm.distributed.device_communicators.custom_all_reduce as _car_mod
             _car_mod._PROFILING_CAR_DISABLED = True
             print(f"[FORK-PROFILE] _PROFILING_CAR_DISABLED=True, ca_comm={_ca_comm}", flush=True)
             if _ca_comm is not None:
                 _ca_comm.disabled = True
         except Exception as e:
-            print(f"[FORK-PROFILE] 设置失败: {e}", flush=True)
+            print(f"[FORK-PROFILE] disable failed: {e}", flush=True)
             pass
         try:
             return self._profile_cudagraph_memory_impl()

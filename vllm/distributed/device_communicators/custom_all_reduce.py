@@ -4,7 +4,7 @@
 from contextlib import contextmanager
 from typing import cast
 
-# [FORK] profiling 期间 custom AR 禁用标志 (128K IPC 泄漏调试)
+# [FORK] custom AR disable flag during profiling (128K IPC leak debug)
 _PROFILING_CAR_DISABLED = False
 
 import torch
@@ -235,7 +235,7 @@ class CustomAllreduce:
         ops.register_graph_buffers(self._ptr, handles, offsets)
 
     def should_custom_ar(self, inp: torch.Tensor):
-        # [FORK] profiling 调试日志 (profile_cudagraph_memory 期间打印)
+        # [FORK] profiling debug log (printed during profile_cudagraph_memory)
         if _PROFILING_CAR_DISABLED:
             print(f"[FORK-CAR] should_custom_ar: disabled={self.disabled} size={inp.numel()*inp.element_size()}", flush=True)
         if self.disabled:
