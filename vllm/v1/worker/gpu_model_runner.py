@@ -6094,10 +6094,14 @@ class GPUModelRunner(
         # [FORK] IPC handle leak crash with 128K context + custom all-reduce
         # (upstream #46515), temporarily disable custom AR instance during profiling
         _ca_comm = None
+        _ca_comm_disabled_orig = None
         try:
-            from vllm.distributed.parallel_state import get_world_group
-            _world = get_world_group()
-            _ca_comm = getattr(_world.device_communicator, "ca_comm", None)
+            # Custom all-reduce lives on the TP group's communicator, not the
+            # world group's, so resolve it via get_tp_group() (review #108).
+            from vllm.distributed.parallel_state import get_tp_group
+            _tp = get_tp_group()
+            _ca_comm = getattr(_tp.device_communicator, "ca_comm", None)
+            _ca_comm_disabled_orig = getattr(_ca_comm, "disabled", None)
             # set module-level flag independently (checked by cuda_communicator.all_reduce)
             import vllm.distributed.device_communicators.custom_all_reduce as _car_mod
             _car_mod._PROFILING_CAR_DISABLED = True
@@ -6106,19 +6110,22 @@ class GPUModelRunner(
                 _ca_comm.disabled = True
         except Exception as e:
             logger.info("[FORK-PROFILE] disable failed: %s", e)
-            pass
         try:
             return self._profile_cudagraph_memory_impl()
         finally:
             # [FORK] Restore unconditionally: the module-level flag was set
             # independently of _ca_comm, so re-enable must not be nested under
             # `if _ca_comm is not None` (review #108 P2) or the flag leaks as
-            # permanently disabled when no custom AR instance exists.
+            # permanently disabled when no custom AR instance exists. Restore
+            # the communicator's previous state instead of force-enabling it:
+            # CustomAllreduce is created even when it self-disables (missing
+            # _custom_ar lib, unsupported world size, failed P2P) and returns
+            # early with disabled=True.
             try:
                 import vllm.distributed.device_communicators.custom_all_reduce as _car_mod
                 _car_mod._PROFILING_CAR_DISABLED = False
-                if _ca_comm is not None:
-                    _ca_comm.disabled = False
+                if _ca_comm is not None and _ca_comm_disabled_orig is not None:
+                    _ca_comm.disabled = _ca_comm_disabled_orig
             except Exception:
                 pass
 
