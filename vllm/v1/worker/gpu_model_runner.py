@@ -6110,13 +6110,17 @@ class GPUModelRunner(
         try:
             return self._profile_cudagraph_memory_impl()
         finally:
-            if _ca_comm is not None:
-                try:
+            # [FORK] Restore unconditionally: the module-level flag was set
+            # independently of _ca_comm, so re-enable must not be nested under
+            # `if _ca_comm is not None` (review #108 P2) or the flag leaks as
+            # permanently disabled when no custom AR instance exists.
+            try:
+                import vllm.distributed.device_communicators.custom_all_reduce as _car_mod
+                _car_mod._PROFILING_CAR_DISABLED = False
+                if _ca_comm is not None:
                     _ca_comm.disabled = False
-                    import vllm.distributed.device_communicators.custom_all_reduce as _car_mod
-                    _car_mod._PROFILING_CAR_DISABLED = False
-                except Exception:
-                    pass
+            except Exception:
+                pass
 
     def _profile_cudagraph_memory_impl(self) -> int:
         with set_current_vllm_config(self.vllm_config):
