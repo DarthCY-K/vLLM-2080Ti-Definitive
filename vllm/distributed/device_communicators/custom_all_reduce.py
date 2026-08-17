@@ -237,7 +237,7 @@ class CustomAllreduce:
     def should_custom_ar(self, inp: torch.Tensor):
         # [FORK] profiling debug log (printed during profile_cudagraph_memory)
         if _PROFILING_CAR_DISABLED:
-            print(f"[FORK-CAR] should_custom_ar: disabled={self.disabled} size={inp.numel()*inp.element_size()}", flush=True)
+            logger.debug("[FORK-CAR] should_custom_ar: disabled=%s size=%s", self.disabled, inp.numel() * inp.element_size())
         if self.disabled:
             return False
         inp_size = inp.numel() * inp.element_size()

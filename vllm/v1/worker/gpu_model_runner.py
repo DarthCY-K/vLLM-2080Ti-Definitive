@@ -6101,11 +6101,11 @@ class GPUModelRunner(
             # set module-level flag independently (checked by cuda_communicator.all_reduce)
             import vllm.distributed.device_communicators.custom_all_reduce as _car_mod
             _car_mod._PROFILING_CAR_DISABLED = True
-            print(f"[FORK-PROFILE] _PROFILING_CAR_DISABLED=True, ca_comm={_ca_comm}", flush=True)
+            logger.info("[FORK-PROFILE] _PROFILING_CAR_DISABLED=True, ca_comm=%s", _ca_comm)
             if _ca_comm is not None:
                 _ca_comm.disabled = True
         except Exception as e:
-            print(f"[FORK-PROFILE] disable failed: {e}", flush=True)
+            logger.info("[FORK-PROFILE] disable failed: %s", e)
             pass
         try:
             return self._profile_cudagraph_memory_impl()
