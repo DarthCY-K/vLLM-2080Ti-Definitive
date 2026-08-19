@@ -968,7 +968,7 @@ class StreamingXMLToolCallParser:
         """Set tool configuration information"""
         self.tools = tools
 
-    def _extract_function_name(self, name: str, attrs: dict[str, str]) -> str | None:
+    def _extract_function_name(self, name: str, attrs: dict[str, str]) -> str:
         """Extract function name from various formats"""
         if attrs and "name" in attrs:
             return attrs["name"]
@@ -978,7 +978,7 @@ class StreamingXMLToolCallParser:
             if len(parts) == 2 and parts[0] == "function":
                 return parts[1]
 
-        return None
+        return ""
 
     def _extract_parameter_name(self, name: str, attrs: dict[str, str]) -> str | None:
         """Extract parameter name from various formats"""
