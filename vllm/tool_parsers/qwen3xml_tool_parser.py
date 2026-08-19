@@ -290,7 +290,7 @@ class StreamingXMLToolCallParser:
                                 index=self.tool_call_index - 1,
                                 id=self.current_call_id,
                                 type="function",
-                                function=DeltaFunctionCall(name=None, arguments=""),
+                                function=DeltaFunctionCall(name=self.current_function_name, arguments=""),
                             )
                         ],
                     )
@@ -684,7 +684,7 @@ class StreamingXMLToolCallParser:
                                 id=self.current_call_id,
                                 type="function",
                                 function=DeltaFunctionCall(
-                                    name=None, arguments=json_start
+                                    name=self.current_function_name, arguments=json_start
                                 ),
                             )
                         ]
@@ -702,7 +702,7 @@ class StreamingXMLToolCallParser:
                                 id=self.current_call_id,
                                 type="function",
                                 function=DeltaFunctionCall(
-                                    name=None, arguments=json_continue
+                                    name=self.current_function_name, arguments=json_continue
                                 ),
                             )
                         ]
@@ -744,7 +744,7 @@ class StreamingXMLToolCallParser:
                             index=self.tool_call_index - 1,
                             id=self.current_call_id,
                             type="function",
-                            function=DeltaFunctionCall(name=None, arguments='"'),
+                            function=DeltaFunctionCall(name=self.current_function_name, arguments='"'),
                         )
                     ]
                 )
@@ -779,7 +779,7 @@ class StreamingXMLToolCallParser:
                         index=self.tool_call_index - 1,
                         id=self.current_call_id,
                         type="function",
-                        function=DeltaFunctionCall(name=None, arguments=delta_data),
+                        function=DeltaFunctionCall(name=self.current_function_name, arguments=delta_data),
                     )
                 ]
             )
@@ -837,7 +837,7 @@ class StreamingXMLToolCallParser:
                             id=self.current_call_id,
                             type="function",
                             function=DeltaFunctionCall(
-                                name=None, arguments=output_arguments
+                                name=self.current_function_name, arguments=output_arguments
                             ),
                         )
                     ]
@@ -872,7 +872,7 @@ class StreamingXMLToolCallParser:
                                 index=self.tool_call_index - 1,
                                 id=self.current_call_id,
                                 type="function",
-                                function=DeltaFunctionCall(name=None, arguments='""'),
+                                function=DeltaFunctionCall(name=self.current_function_name, arguments='""'),
                             )
                         ]
                     )
@@ -885,7 +885,7 @@ class StreamingXMLToolCallParser:
                                 index=self.tool_call_index - 1,
                                 id=self.current_call_id,
                                 type="function",
-                                function=DeltaFunctionCall(name=None, arguments='"'),
+                                function=DeltaFunctionCall(name=self.current_function_name, arguments='"'),
                             )
                         ]
                     )
@@ -908,7 +908,7 @@ class StreamingXMLToolCallParser:
                             index=self.tool_call_index - 1,
                             id=self.current_call_id,
                             type="function",
-                            function=DeltaFunctionCall(name=None, arguments="}"),
+                            function=DeltaFunctionCall(name=self.current_function_name, arguments="}"),
                         )
                     ]
                 )
@@ -921,7 +921,7 @@ class StreamingXMLToolCallParser:
                             index=self.tool_call_index - 1,
                             id=self.current_call_id,
                             type="function",
-                            function=DeltaFunctionCall(name=None, arguments="{}"),
+                            function=DeltaFunctionCall(name=self.current_function_name, arguments="{}"),
                         )
                     ]
                 )
@@ -944,7 +944,7 @@ class StreamingXMLToolCallParser:
                         index=self.tool_call_index - 1,
                         id=self.current_call_id,
                         type="function",
-                        function=DeltaFunctionCall(name=None, arguments=""),
+                        function=DeltaFunctionCall(name=self.current_function_name, arguments=""),
                     )
                 ]
             )
