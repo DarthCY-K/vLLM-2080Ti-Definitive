@@ -852,7 +852,14 @@ class ParserEngine(Parser):
                 deltas.append(
                     DeltaToolCall(
                         index=idx,
-                        function=DeltaFunctionCall(arguments=arg_delta),
+                        function=DeltaFunctionCall(
+                            name=(
+                                slot.name
+                                if self.parser_engine_config.repeat_tool_name_in_deltas
+                                else None
+                            ),
+                            arguments=arg_delta,
+                        ),
                     )
                 )
 
@@ -894,7 +901,14 @@ class ParserEngine(Parser):
             deltas.append(
                 DeltaToolCall(
                     index=idx,
-                    function=DeltaFunctionCall(arguments=remaining),
+                    function=DeltaFunctionCall(
+                        name=(
+                            slot.name
+                            if self.parser_engine_config.repeat_tool_name_in_deltas
+                            else None
+                        ),
+                        arguments=remaining,
+                    ),
                 )
             )
 

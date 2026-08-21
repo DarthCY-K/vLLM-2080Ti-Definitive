@@ -32,6 +32,10 @@ except ImportError:
 
 logger = init_logger(__name__)
 
+# Profiling uses temporary CUDA graphs and must not create custom-all-reduce
+# IPC handles, which can leak across repeated graph-capture attempts.
+_PROFILING_CAR_DISABLED = False
+
 
 def _can_p2p(rank: int, world_size: int) -> bool:
     for i in range(world_size):
