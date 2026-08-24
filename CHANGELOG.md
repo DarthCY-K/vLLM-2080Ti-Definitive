@@ -3,6 +3,17 @@
 This changelog tracks the fork release version for vLLM 2080 Ti Definitive
 Edition. It is separate from the upstream vLLM package version.
 
+## v0.1.17 - 2026-08-24
+
+- Merges [PR #125](https://github.com/weicj/vLLM-2080Ti-Definitive/pull/125), deduplicating named-tool streaming fallback output and preserving `finish_reason=length` for truncated tool calls.
+- Merges [PR #128](https://github.com/weicj/vLLM-2080Ti-Definitive/pull/128), disabling implicit repetition detection for tool-call arguments by default so valid repeated Markdown or code is not truncated.
+- Merges [PR #129](https://github.com/weicj/vLLM-2080Ti-Definitive/pull/129), emitting Qwen XML function names once per tool call and omitting repeated `name` fields from continuation deltas.
+- Merges [PR #130](https://github.com/weicj/vLLM-2080Ti-Definitive/pull/130), making Qwen XML close-tag recovery call-scoped, cross-chunk safe, and bounded for long streamed arguments.
+- Merges [PR #132](https://github.com/weicj/vLLM-2080Ti-Definitive/pull/132), bounding the TurboQuant FlashInfer prefill wrapper cache while preserving CUDA Graph-safe wrapper lifetimes.
+- Merges [PR #133](https://github.com/weicj/vLLM-2080Ti-Definitive/pull/133), re-aligning Mamba offload hit boundaries after per-group clamps to preserve hybrid KV state consistency.
+- Merges [PR #134](https://github.com/weicj/vLLM-2080Ti-Definitive/pull/134), reserving TurboQuant continuation workspace for the configured maximum context before KV-cache sizing.
+- Release credit: @kevinhirsch and @weicj.
+
 ## v0.1.16 - 2026-08-20
 
 - Merges [PR #101](https://github.com/weicj/vLLM-2080Ti-Definitive/pull/101), bounding Qwen reasoning blocks without dropping split markers.
