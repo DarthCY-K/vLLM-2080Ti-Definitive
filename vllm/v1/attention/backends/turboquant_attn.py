@@ -16,6 +16,7 @@ Per-head per-position slot layout:
   For turboquant_k3v4_nc head_dim=256: [100 bytes key | 512 bytes value] = 612
 """
 
+from collections import OrderedDict
 import functools
 import math
 import os
@@ -195,6 +196,15 @@ _SM75_TQ_FI_CONTINUATION_MIN_QUERY_LEN = int(
 _DEFAULT_TQ_FI_PLAN_CACHE = (
     os.getenv("VLLM_TURBOQUANT_FLASHINFER_PREFILL_PLAN_CACHE", "1") == "1"
 )
+_TQ_FI_PREFILL_PLAN_CACHE_MAXSIZE = max(
+    1,
+    int(
+        os.getenv(
+            "VLLM_TURBOQUANT_FLASHINFER_PREFILL_PLAN_CACHE_MAXSIZE",
+            "16",
+        )
+    ),
+)
 _TQ_FI_PREFILL_CUDAGRAPH_SAFE = (
     os.getenv("VLLM_TURBOQUANT_FLASHINFER_PREFILL_CUDAGRAPH_SAFE", "0") == "1"
 )
@@ -257,7 +267,7 @@ _GEMMA4_TQ4NC_SHARED_FP16_TRITON = (
     and os.getenv("VLLM_GEMMA4_TQ4NC_SHARED_FP16_TRITON", "0") == "1"
 )
 _TQ_FI_PREFILL_WORKSPACES: dict[tuple[str, str], torch.Tensor] = {}
-_TQ_FI_PREFILL_WRAPPERS: dict[tuple[Any, ...], Any] = {}
+_TQ_FI_PREFILL_WRAPPERS: OrderedDict[tuple[Any, ...], Any] = OrderedDict()
 logger = init_logger(__name__)
 
 
@@ -727,6 +737,24 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
         cache_key = (str(norm_device), self._fi_prefill_backend, *plan_key)
         wrapper = _TQ_FI_PREFILL_WRAPPERS.get(cache_key)
         if wrapper is None:
+            if _TQ_FI_PREFILL_CUDAGRAPH_SAFE:
+                # A graph-safe wrapper owns the indptr buffers referenced by
+                # any CUDA graph that captures its plan/run.  There is no
+                # callback here when such a graph is destroyed, so dropping
+                # the wrapper can leave graph replay with dangling pointers.
+                logger.warning_once(
+                    "TurboQuant FlashInfer prefill plan cache eviction is "
+                    "disabled when CUDA-graph-safe wrappers are enabled; "
+                    "set VLLM_TURBOQUANT_FLASHINFER_PREFILL_CUDAGRAPH_SAFE=0 "
+                    "to allow bounded wrapper caching"
+                )
+            elif len(_TQ_FI_PREFILL_WRAPPERS) >= _TQ_FI_PREFILL_PLAN_CACHE_MAXSIZE:
+                # Evict before constructing/planning the replacement.  The
+                # wrapper owns an auxiliary GPU workspace, so evicting after
+                # planning briefly requires maxsize + 1 workspaces and can
+                # OOM at the exact point this bound is meant to protect.
+                _TQ_FI_PREFILL_WRAPPERS.popitem(last=False)
+
             workspace = _get_shared_flashinfer_prefill_workspace(
                 norm_device, self._fi_prefill_backend
             )
@@ -758,6 +786,8 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
             )
             wrapper.plan(**plan_kwargs)
             _TQ_FI_PREFILL_WRAPPERS[cache_key] = wrapper
+        else:
+            _TQ_FI_PREFILL_WRAPPERS.move_to_end(cache_key)
         return wrapper
 
     def process_weights_after_loading(self, act_dtype: torch.dtype):
