@@ -74,6 +74,9 @@ class StreamingXMLToolCallParser:
 
         self.streaming_buffer = ""
         self.last_processed_pos = 0
+        self._current_call_search_pos: int | None = None
+        self._function_close_emitted = False
+        self._tool_call_close_emitted = False
 
         self.text_content_buffer = ""
 
@@ -103,9 +106,16 @@ class StreamingXMLToolCallParser:
         # Record delta count before processing
         initial_delta_count = len(self.deltas)
 
+        unprocessed_start = self.last_processed_pos
         self.streaming_buffer += xml_chunk
 
         found_elements = self._process_complete_xml_elements()
+        current_input_start = (
+            self._current_call_search_pos
+            if self._current_call_search_pos is not None
+            else unprocessed_start
+        )
+        current_input = self.streaming_buffer[current_input_start:]
 
         if found_elements:
             # If complete elements found, check if end events were missed
@@ -256,6 +266,10 @@ class StreamingXMLToolCallParser:
             # Found complete XML element, process it
             try:
                 preprocessed_element = self._preprocess_xml_chunk(element)
+                element_start = self.last_processed_pos
+                starts_tool_call = preprocessed_element.strip().startswith(
+                    ("<tool_call>", "<function name=")
+                )
                 # Check if this is the first tool_call start
                 if (
                     (
@@ -300,6 +314,8 @@ class StreamingXMLToolCallParser:
                     self._emit_delta(final_delta)
                     # Reset XML parser and current call state
                     self._reset_xml_parser_after_tool_call()
+                if starts_tool_call and self.current_call_id is None:
+                    self._current_call_search_pos = element_start
                 # Parse preprocessed element
                 self.parser.Parse(preprocessed_element, False)
                 found_any = True
@@ -650,6 +666,8 @@ class StreamingXMLToolCallParser:
 
             self.parameters = {}
             self.current_call_id = make_tool_call_id()
+            self._function_close_emitted = False
+            self._tool_call_close_emitted = False
             self.current_param_is_first = True
             self.tool_call_index += 1
         elif name.startswith("function") or (name == "function"):
@@ -662,6 +680,7 @@ class StreamingXMLToolCallParser:
             function_name = self._extract_function_name(name, attrs)
             self.current_function_name = function_name
             self._function_name_emitted = False
+            self._function_close_emitted = False
             self.current_function_open = True
             if function_name:
                 delta = DeltaMessage(
@@ -918,6 +937,8 @@ class StreamingXMLToolCallParser:
             self.start_quote_emitted = False
 
         elif name.startswith("function") or name == "function":
+            if self._function_close_emitted:
+                return
             # if there are parameters, close JSON object
             if self.parameters:
                 delta = DeltaMessage(
@@ -945,8 +966,11 @@ class StreamingXMLToolCallParser:
                 )
                 self._emit_delta(delta)
             self.current_function_open = False
+            self._function_close_emitted = True
 
         elif name == "tool_call":
+            if self._tool_call_close_emitted:
+                return
             # Before ending tool_call,
             # ensure function is closed to complete missing right brace
             if self.current_function_open:
@@ -967,6 +991,7 @@ class StreamingXMLToolCallParser:
                 ]
             )
             self._emit_delta(delta)
+            self._tool_call_close_emitted = True
 
             # Check if there's text content to output (between tool_calls)
             if self.text_content_buffer.strip():
@@ -1146,6 +1171,9 @@ class StreamingXMLToolCallParser:
         if self.current_call_id:
             self.last_completed_call_id = self.current_call_id
         self.current_call_id = None
+        self._current_call_search_pos = None
+        self._function_close_emitted = False
+        self._tool_call_close_emitted = False
         self.current_function_name = ""
         self._function_name_emitted = False
         self.current_function_open = False
