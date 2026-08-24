@@ -26,6 +26,14 @@ def test_function_name_is_only_emitted_in_first_delta():
     )
 
     calls = _tool_calls(deltas)
-    assert [call.function.name for call in calls if call.function and call.function.name] == [
-        "search_weather"
-    ]
+    assert calls
+    assert calls[0].function is not None
+    assert calls[0].function.name == "search_weather"
+    assert all(
+        call.function is None or call.function.name is None for call in calls[1:]
+    )
+    assert all(
+        "name" not in call.function.model_dump(exclude_unset=True)
+        for call in calls[1:]
+        if call.function is not None
+    )

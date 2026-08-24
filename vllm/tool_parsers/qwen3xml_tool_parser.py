@@ -604,7 +604,10 @@ class StreamingXMLToolCallParser:
             if function is None or not function.name:
                 continue
             if self._function_name_emitted:
-                function.name = None
+                # Do not keep an explicitly-set ``name=None`` field on
+                # continuation deltas. OpenAI serialization must omit the
+                # field entirely after the first delta.
+                tool_call.function = DeltaFunctionCall(arguments=function.arguments)
             else:
                 self._function_name_emitted = True
         self.deltas.append(delta)
