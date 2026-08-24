@@ -859,8 +859,21 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
         if block_size <= 0:
             block_size = max_batched_tokens
 
+        # Continuation prefill dequantizes the complete cached prefix into the
+        # shared workspace.  Reserving only max_num_batched_tokens is not
+        # sufficient for long-context profiles: the workspace is locked before
+        # the first request and cannot grow when a 128K/256K prefix arrives.
+        # Use max_model_len as the default bound, while retaining the env var
+        # as an explicit lower bound for deployments with a smaller route.
+        model_cfg = getattr(vllm_config, "model_config", None)
+        max_model_len = int(
+            getattr(model_cfg, "max_model_len", 0) if model_cfg is not None else 0
+        )
+        configured_reserve = _TQ_CONTINUATION_WORKSPACE_RESERVE_TOKENS
         reserve_tokens = max(
-            max_batched_tokens, _TQ_CONTINUATION_WORKSPACE_RESERVE_TOKENS
+            max_batched_tokens,
+            max_model_len,
+            configured_reserve,
         )
         reserve_cached_len = math.ceil(reserve_tokens / block_size) * block_size
         if reserve_cached_len <= 0:

@@ -1969,6 +1969,7 @@ def _turboquant_prefill_workspace_reserve_bytes(vllm_config: VllmConfig) -> int:
 
     reserve_tokens = max(
         max_batched_tokens,
+        int(getattr(vllm_config.model_config, "max_model_len", 0)),
         int(envs.VLLM_TURBOQUANT_CONTINUATION_WORKSPACE_RESERVE_TOKENS),
     )
     reserve_cached_len = math.ceil(reserve_tokens / block_size) * block_size
