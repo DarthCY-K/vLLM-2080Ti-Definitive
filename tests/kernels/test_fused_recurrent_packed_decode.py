@@ -104,6 +104,29 @@ def test_fused_recurrent_packed_decode_matches_reference(
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Need CUDA device")
+def test_packed_decode_supports_large_batch_head_grid():
+    B, H, HV, K, V = 1024, 8, 64, 1, 1
+    device = torch.device("cuda")
+    gates = torch.empty((B, HV), device=device)
+    params = torch.empty((HV,), device=device)
+    out = torch.empty((B, 1, HV, V), device=device)
+
+    fused_recurrent_gated_delta_rule_packed_decode(
+        mixed_qkv=torch.empty((B, 2 * H * K + HV * V), device=device),
+        a=gates,
+        b=gates,
+        A_log=params,
+        dt_bias=params,
+        scale=1.0,
+        initial_state=torch.empty((1, HV, V, K), device=device),
+        out=out,
+        ssm_state_indices=torch.zeros((B,), device=device, dtype=torch.int32),
+    )
+
+    assert torch.count_nonzero(out).item() == 0
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="Need CUDA device")
 def test_fused_recurrent_packed_decode_accepts_gdn_state_slot_zero() -> None:
     torch.manual_seed(7)
     device = torch.device("cuda")
