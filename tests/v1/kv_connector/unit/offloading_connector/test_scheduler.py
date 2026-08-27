@@ -2277,6 +2277,7 @@ class TestEagle:
         scheduler._lookup_groups = (0, 1)
         scheduler._mamba_align_size = 16
         scheduler._chunks_being_loaded = set()
+        scheduler._events_tracker = MagicMock()
         scheduler.manager = RecordingAllHitManager()
         scheduler.config = SimpleNamespace(
             kv_group_configs=(

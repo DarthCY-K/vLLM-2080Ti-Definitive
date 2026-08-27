@@ -70,6 +70,7 @@ def create_scheduler(
     ec_role: str | None = None,
     use_v2_model_runner: bool | None = None,
     kv_cache_spec: KVCacheSpec | None = None,
+    prefill_batch_barrier: bool = False,
 ) -> Scheduler | AsyncScheduler:
     """Create scheduler under test.
 
@@ -173,6 +174,9 @@ def create_scheduler(
         kv_transfer_config=kv_transfer_config,
         speculative_config=speculative_config,
         ec_transfer_config=ec_transfer_config,
+        additional_config=(
+            {"prefill_batch_barrier": True} if prefill_batch_barrier else {}
+        ),
     )
     if kv_cache_spec is None:
         kv_cache_spec = FullAttentionSpec(
